@@ -72,7 +72,7 @@ ptr S_create_thread_object(const char *who, ptr p_tc) {
     iptr i, n = Svector_length(p_v);
     ptr v;
 
-    tc = TO_PTR(malloc(size_tc));
+    tc = TO_PTR(malloc(size_tc)); //分配线程上下文？
     if (free_thread_gcs) {
       tgc = free_thread_gcs;
       free_thread_gcs = tgc->next;
@@ -384,19 +384,19 @@ void S_mutex_free(scheme_mutex_t *m) {
   s_thread_mutex_destroy(&m->pmutex);
   free(m);
 }
-
+//对mutex进行加锁
 void S_mutex_acquire(scheme_mutex_t *m) NO_THREAD_SANITIZE {
-  s_thread_t self = s_thread_self();
+  s_thread_t self = s_thread_self(); //线程自身
   iptr count;
   INT status;
-
+  //如果当前的owner是自己，并且count大于0没有超出深度，直接结束
   if ((count = m->count) > 0 && s_thread_equal(m->owner, self)) {
     if (count == most_positive_fixnum)
       S_error1("mutex-acquire", "recursion limit exceeded for ~s", TO_PTR(m));
     m->count = count + 1;
     return;
   }
-
+  //对mutex进行加锁，并更新信息
   if ((status = s_thread_mutex_lock(&m->pmutex)) != 0)
     S_error1("mutex-acquire", "failed: ~a", S_strerror(status));
   m->owner = self;

@@ -355,9 +355,9 @@ typedef struct _dirtycardinfo {
 
 #ifdef PTHREADS
 typedef struct {
-  volatile s_thread_t owner;
-  volatile uptr count;
-  s_thread_mutex_t pmutex;
+  volatile s_thread_t owner; //线程
+  volatile uptr count; //计数
+  s_thread_mutex_t pmutex; //真正mutex
 } scheme_mutex_t;
 
 #define get_thread_context() TO_PTR(s_thread_getspecific(S_tc_key))
@@ -398,7 +398,7 @@ typedef struct {
     tc_mutex_release()\
   }\
 }
-
+//获取S_tc_mutex锁定
 #define tc_mutex_acquire() do {                 \
     assert_no_alloc_mutex();                    \
     S_mutex_acquire(&S_tc_mutex);               \
