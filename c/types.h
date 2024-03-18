@@ -285,7 +285,7 @@ typedef struct _bucket_pointer_list {
 #define rtd_parent(x) INITVECTIT(RECORDDESCANCESTRY(x), Svector_length(RECORDDESCANCESTRY(x)) - ancestry_parent_offset)
 
 /* type tagging macros */
-
+//同样是使用指针末尾的4位是0的特性，对指针对象进行了标记
 #define TYPE(x,type) ((ptr)((iptr)(x) - typemod + (type)))
 #define UNTYPE(x,type) ((ptr)((iptr)(x) + typemod - (type)))
 #define UNTYPE_ANY(x) ((ptr)(((iptr)(x) + (typemod - 1)) & ~(typemod - 1)))
