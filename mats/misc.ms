@@ -1477,6 +1477,9 @@
   (eq? (eval '(let ((x 3)) x) (ieee-environment)) 3)
   (eq? (eval '(let ((x 3)) x) (null-environment 5)) 3)
 
+  (eq? (eval '(< 3 5) (scheme-report-environment 5)) #true)
+  (eq? (eval '(< 3 5) (ieee-environment)) #true)
+
   (eq? (eval '(let ((p (delay 3))) (force p))) 3)
   (eq? (eval '(let ((p (delay 3))) (force p)) (interaction-environment)) 3)
   (eq? (eval '(let ((p (delay 3))) (force p)) (scheme-report-environment 5)) 3)
@@ -1487,6 +1490,10 @@
   (error? (eval '(sort < '(3 2 4)) (scheme-report-environment 5)))
   (error? (eval '(sort < '(3 2 4)) (ieee-environment)))
   (error? (eval '(sort < '(3 2 4)) (null-environment 5)))
+
+  (error? (eval '(< 3) (scheme-report-environment 5)))
+  (error? (eval '(< 3) (ieee-environment)))
+
 )
 
 (mat eval2
@@ -4685,7 +4692,7 @@
 )
 
 (unless (memq (machine-type) '(arm32le tarm32le arm64le tarm64le arm64osx tarm64osx ; timestamp counter tends to be priviledged on Arm
-				       arm64nt tarm64nt
+                                       arm64ios tarm64ios arm64nt tarm64nt
                                        pb pb32l pb32b pb64l pb64b tpb tpb32l tpb32b tpb64l tpb64b)) ; doesn't increment for pb
   (mat $read-time-stamp-counter
 

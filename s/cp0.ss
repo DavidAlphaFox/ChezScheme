@@ -2614,6 +2614,15 @@
                                        e]))
                                  c-val)))))])))))])
 
+      (define-inline 2 (call/cc call/1cc call-with-current-continuation)
+        [(body)
+         (nanopass-case (Lsrc Expr) (value-visit-operand! body)
+           [(case-lambda ,preinfo (clause (,x) ,interface ,e))
+            (guard (not (prelex-was-referenced x)))
+            (residualize-seq (list) (list body) ctxt)
+            e]
+           [else #f])])
+
       (define-inline 2 $call-setting-continuation-attachment
         [(val body)
          (nanopass-case (Lsrc Expr) (value-visit-operand! body)
@@ -3729,7 +3738,7 @@
                 (lambda (x)
                   (syntax-case x ()
                     [(_ type bytes pred)
-                     (if (memq (datum type) '(scheme-object boolean))
+                     (if (memq (datum type) '(scheme-object boolean stdbool))
                          #'($oops who "unexpected type ~s" 'type)
                          #'(build-primcall 3 'pred
                              (list (build-ref val-t))))])))
@@ -3752,7 +3761,7 @@
                                    (lambda (fld t check*)
                                      (let* ([type (fld-type fld)]
                                             [real-type (filter-foreign-type type)])
-                                       (if (memq real-type '(scheme-object boolean))
+                                       (if (memq real-type '(scheme-object boolean stdbool))
                                            check*
                                            (cons
                                              `(if ,(type->pred 'record-constructor real-type t)
@@ -4007,7 +4016,7 @@
                                      [rec-t (cp0-make-temp #t)]
                                      [val-t (cp0-make-temp #t)])
                                 (let ([expr `(record-set! ,rtd ,type ,index (ref #f ,rec-t) (ref #f ,val-t))]
-                                      [pred (and (not (memq real-type '(scheme-object boolean)))
+                                      [pred (and (not (memq real-type '(scheme-object boolean stdbool)))
                                                  (type->pred who real-type val-t))])
                                   (cond
                                     [(fx= level 3)

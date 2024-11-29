@@ -1151,6 +1151,14 @@
           (join-marks (wrap-marks w) (wrap-marks (syntax-object-wrap x))))
         (values (unannotate x) (wrap-marks w)))))
 
+(define id->unprefixed-id
+  (lambda (id)
+    (let* ([sym (id-sym-name id)]
+           [unprefixed-sym ($sgetprop sym '*unprefixed* sym)])
+      (if (eq? sym unprefixed-sym)
+          id
+          (make-syntax-object unprefixed-sym (syntax-object-wrap id))))))
+
 ;;; syntax object wraps
 
 ;;;         <wrap>     ::= ((<mark> ...) . (<subst> ...))
@@ -5900,13 +5908,14 @@
                       (store-global-subst id '*top* '())
                       (cond
                         [(any-set? (prim-mask r5rs) m)
-                         (store-global-subst id '*r5rs* '())
-                         (store-global-subst id '*r5rs-syntax* '())
-                         (cond
-                           [(any-set? (prim-mask ieee) m)
-                            (store-global-subst id '*ieee* '())
-                            (repartition id #t #t #t #t)]
-                           [else (repartition id #t #t #f #t)])]
+                         (let ([unprefixed-id (id->unprefixed-id id)])
+                           (store-global-subst unprefixed-id '*r5rs* '())
+                           (store-global-subst unprefixed-id '*r5rs-syntax* '())
+                           (cond
+                             [(any-set? (prim-mask ieee) m)
+                              (store-global-subst unprefixed-id '*ieee* '())
+                              (repartition id #t #t #t #t)]
+                             [else (repartition id #t #t #f #t)]))]
                         [else (repartition id #f #f #f #t)])]
                      [else (repartition id #f #f #f #f)]))]
                 [(any-set? (prim-mask (or primitive system)) m)
@@ -5918,12 +5927,13 @@
                       (store-global-subst id '*top* '())
                       (cond
                         [(any-set? (prim-mask r5rs) m)
-                         (store-global-subst id '*r5rs* '())
-                         (cond
-                           [(any-set? (prim-mask ieee) m)
-                            (store-global-subst id '*ieee* '())
-                            (repartition id #f #t #t #t)]
-                           [else (repartition id #f #t #f #t)])]
+                         (let ([unprefixed-id (id->unprefixed-id id)])
+                           (store-global-subst unprefixed-id '*r5rs* '())
+                           (cond
+                             [(any-set? (prim-mask ieee) m)
+                              (store-global-subst unprefixed-id '*ieee* '())
+                              (repartition id #f #t #t #t)]
+                             [else (repartition id #f #t #f #t)]))]
                         [else (repartition id #f #f #f #t)])]
                      [else (repartition id #f #f #f #f)]))]
                 [else (partition (cdr ls) r5rs-syntax r5rs ieee scheme system)]))))))
@@ -6027,10 +6037,11 @@
          (_ (syntax-error (source-wrap e w ae))))))
 
 (global-extend 'core 'quote-syntax
-   (lambda (e r w ae)
+  (lambda (e r w ae)
+    (let ([e (source-wrap e w ae)])
       (syntax-case e ()
-         ((_ e) (build-data no-source (source-wrap (syntax e) w ae)))
-         (_ (syntax-error (source-wrap e w ae))))))
+         ((_ e) (build-data no-source (syntax e)))
+         (_ (syntax-error e))))))
 
 (global-extend 'core 'syntax
   (let ()
@@ -8347,18 +8358,19 @@
                              (set! y t) ...))])
                (dynamic-wind #t swap (lambda () e1 e2 ...) swap))))])))
 
-
 (define-syntax with-continuation-mark
   (lambda (x)
     (syntax-case x ()
       [(_ key val body)
-       #'($call-consuming-continuation-attachment
-          '()
-          (lambda (marks)
-            ($call-setting-continuation-attachment
-             ($update-mark marks key val)
-             (lambda ()
-               body))))])))
+       #'(let ([k key]
+               [v val])
+           ($call-consuming-continuation-attachment
+            '()
+            (lambda (marks)
+              ($call-setting-continuation-attachment
+               ($update-mark marks k v)
+               (lambda ()
+                 body)))))])))
 
 (define-syntax rec
   (lambda (x)
@@ -8872,7 +8884,7 @@
         integer-8 unsigned-8 integer-16 unsigned-16 integer-24 unsigned-24
         integer-32 unsigned-32 integer-40 unsigned-40 integer-48 unsigned-48
         integer-56 unsigned-56 integer-64 unsigned-64
-        boolean fixnum char wchar u8* u16* u32* utf-8 utf-16le utf-16be utf-16
+        boolean stdbool fixnum char wchar u8* u16* u32* utf-8 utf-16le utf-16be utf-16
         utf-32le utf-32be utf-32) type]
       [(void) (and void-okay? type)]
       [(ptr) 'scheme-object]
@@ -8960,7 +8972,7 @@
            a))]
       [else
        (case type
-         [(boolean void) '(lambda (id) #t)]
+         [(boolean stdbool void) '(lambda (id) #t)]
          [(char) '(lambda (id) (and (char? id) (fx<= (char->integer id) #xff)))]
          [(wchar)
           (constant-case wchar-bits
@@ -9054,6 +9066,11 @@
                                        (#,(constant-case int-bits
                                             [(32) #'integer-32]
                                             [(64) #'integer-64])))]
+                                   [(stdbool)
+                                    #`(()
+                                       ((if x 1 0))
+                                       (#,(constant-case stdbool-bits
+                                            [(8) #'integer-8])))]
                                    [(char)
                                     #`(()
                                        (#,(if unsafe?
@@ -9178,6 +9195,9 @@
                                        #,(constant-case int-bits
                                            [(32) #'integer-32]
                                            [(64) #'integer-64]))]
+                         [(stdbool) #`((lambda (x) (not (eq? x 0)))
+                                       #,(constant-case stdbool-bits
+                                           [(8) #'integer-8]))]
                          [(char) #'((lambda (x) (#3%integer->char (#3%fxlogand x #xff)))
                                     unsigned-8)]
                          [(wchar) #`(integer->char
@@ -9274,6 +9294,12 @@
                                        (#,(constant-case int-bits
                                             [(32) #'integer-32]
                                             [(64) #'integer-64]))))]
+                                 [(stdbool)
+                                  (with-syntax ([(x) (generate-temporaries #'(*))])
+                                    #`((not (eq? x 0))
+                                       (x)
+                                       (#,(constant-case stdbool-bits
+                                            [(8) #'integer-8]))))]
                                  [(char)
                                   (with-syntax ([(x) (generate-temporaries #'(*))])
                                     #`((#3%integer->char (#3%fxlogand x #xff))
@@ -9374,6 +9400,10 @@
                                        #,(constant-case int-bits
                                            [(32) #'integer-32]
                                            [(64) #'integer-64])
+                                       [] [])]
+                         [(stdbool) #`((lambda (x) (if x 1 0))
+                                       #,(constant-case stdbool-bits
+                                           [(8) #'integer-8])
                                        [] [])]
                          [(char)
                           #`((lambda (x)

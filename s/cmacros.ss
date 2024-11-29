@@ -357,7 +357,7 @@
 ;; ---------------------------------------------------------------------
 ;; Version and machine types:
 
-(define-constant scheme-version #x0a010001)
+(define-constant scheme-version #x0a020001)
 
 (define-syntax define-machine-types
   (lambda (x)
@@ -391,6 +391,7 @@
   i3gnu     ti3gnu
   a6nt      ta6nt
   a6osx     ta6osx
+  a6ios     ta6ios
   a6le      ta6le
   a6fb      ta6fb
   a6ob      ta6ob
@@ -407,6 +408,7 @@
   arm32nb   tarm32nb
   arm64nt   tarm64nt
   arm64osx  tarm64osx
+  arm64ios  tarm64ios
   arm64le   tarm64le
   arm64fb   tarm64fb
   arm64ob   tarm64ob
@@ -1207,7 +1209,8 @@
       (fixnum (constant ptr-bytes) fixnum?)
       (char 1 $foreign-char?)
       (wchar (fxsrl (constant wchar-bits) 3) $foreign-wchar?)
-      (boolean (fxsrl (constant int-bits) 3) (lambda (x) #t)))))
+      (boolean (fxsrl (constant int-bits) 3) (lambda (x) #t))
+      (stdbool (fxsrl (constant stdbool-bits) 3) (lambda (x) #t)))))
 )
 
 (define-syntax record-datatype
@@ -1499,6 +1502,7 @@
   ([double data]))
 
 (define-constant flonum-bytes 8)
+(define-constant flonum-bits (* 8 (constant flonum-bytes)))
 
 ; on 32-bit systems, the iptr pad will have no effect above and
 ; beyond the normal padding.  on 64-bit systems, the pad
@@ -2819,6 +2823,7 @@
      (fl> #f 2 #t #t)
      (fl<= #f 2 #t #t)
      (fl>= #f 2 #t #t)
+     (flbit-field #f 3 #t #t)
      (flmin #f 2 #t #t)
      (flmax #f 2 #t #t)
      (callcc #f 1 #f #f)

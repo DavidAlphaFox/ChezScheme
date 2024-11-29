@@ -232,7 +232,8 @@
       (error? (load-shared-object 3))
     )
    ]
-  [(i3osx ti3osx a6osx ta6osx ppc32osx tppc32osx arm64osx tarm64osx)
+  [(i3osx ti3osx a6osx ta6osx ppc32osx tppc32osx arm64osx tarm64osx
+          a6ios ta6ios arm64ios tarm64ios)
    (mat load-shared-object
      (file-exists? foreign1.so)
       (begin (load-shared-object foreign1.so) #t)
@@ -932,6 +933,7 @@
   (equal? (foreign-sizeof 'unsigned-long) (foreign-sizeof 'long))
   (equal? (foreign-sizeof 'unsigned-long-long) (foreign-sizeof 'long-long))
   (equal? (foreign-sizeof 'boolean) (foreign-sizeof 'int))
+  (equal? (foreign-sizeof 'stdbool) (foreign-sizeof 'stdbool))
   (equal? (foreign-sizeof 'fixnum) (foreign-sizeof 'iptr))
   (equal? (foreign-sizeof 'scheme-object) (foreign-sizeof 'void*))
   (equal? (foreign-sizeof 'ptr) (foreign-sizeof 'void*))
@@ -2594,6 +2596,19 @@
       (eqv? (Srvtest_boolean Frvtest_boolean "abcdefg") #t)
       (eqv? (Srvtest_boolean Frvtest_boolean "gfedcba") #f)))
   (let ()
+    (define Frvtest_stdbool
+      (foreign-callable
+        (lambda (x) (equal? x "abCDEfg"))
+        (scheme-object)
+        stdbool))
+    (define Srvtest_stdbool
+      (foreign-procedure "Srvtest_stdbool"
+        (scheme-object scheme-object)
+        stdbool))
+    (and
+      (eqv? (Srvtest_stdbool Frvtest_stdbool "abCDEfg") #t)
+      (eqv? (Srvtest_stdbool Frvtest_stdbool "gfEDCba") #f)))
+  (let ()
     (define Frvtest_fixnum
       (foreign-callable
         (lambda (x) (* x x))
@@ -3091,7 +3106,8 @@
          '(load-shared-object "libc.so.7")]
         [(i3nt ti3nt a6nt ta6nt arm64nt tarm64nt)
          '(load-shared-object "msvcrt.dll")]
-        [(i3osx ti3osx a6osx ta6osx ppc32osx tppc32osx arm64osx tarm64osx)
+        [(i3osx ti3osx a6osx ta6osx ppc32osx tppc32osx arm64osx tarm64osx
+                a6ios ta6ios arm64ios tarm64ios)
          '(load-shared-object "libc.dylib")]
         [(pb pb32l pb32b pb64l pb64b tpb tpb32l tpb32b tpb64l tpb64b)
          '(let ([try-load (lambda (path)

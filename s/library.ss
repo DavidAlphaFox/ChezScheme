@@ -709,6 +709,7 @@
   (define-library-entry (fllog x) (flonum-oops 'fllog x))
   (define-library-entry (fllog2 x y) (flonum-oops 'fllog (if (flonum? x) y x)))
   (define-library-entry (flexpt x y) (flonum-oops 'flexpt (if (flonum? x) y x)))
+  (define-library-entry (flbit-field x y z) (flonum-oops 'flbit-field x))
 
   (define-library-entry (flonum->fixnum x) (if (flonum? x)
                                                ($oops 'flonum->fixnum "result for ~s would be outside of fixnum range" x)
@@ -865,6 +866,9 @@
   (define exactintoops2
     (lambda (who x y)
       (exactintoops1 who (if (or (fixnum? x) (bignum? x)) y x))))
+  (define invalidindexoops
+    (lambda (who k)
+      ($oops who "invalid bit index ~s" k)))
 
   (define-library-entry (logand x y)
     (if (if (fixnum? x)
@@ -939,27 +943,27 @@
          (cond
            [(fixnum? k)
             (if (fx< k 0)
-                ($oops who "invalid bit index ~s" k)
+                (invalidindexoops who k)
                ; this case left to us by cp1in logbit? handler
                 (fx< n 0))]
            [(bignum? k)
             (if (< k 0)
-                ($oops who "invalid bit index ~s" k)
+                (invalidindexoops who k)
                ; this case left to us by cp1in logbit? handler
                 (fx< n 0))]
-           [else (exactintoops1 who k)])]
+           [else (invalidindexoops who k)])]
         [(bignum? n)
          (cond
            [(fixnum? k)
             (if (fx< k 0)
-                ($oops who "invalid bit index ~s" k)
+                (invalidindexoops who k)
                 ($logbit? k n))]
            [(bignum? k)
             (if (< k 0)
-                ($oops who "invalid bit index ~s" k)
+                (invalidindexoops who k)
                ; $logbit? requires k to be a fixnum
                 (fxlogtest (ash n (- k)) 1))]
-           [else (exactintoops1 who k)])]
+           [else (invalidindexoops who k)])]
         [else (exactintoops1 who n)]))
     (define-library-entry (logbit? k n) (do-logbit? 'logbit? k n))
     (define-library-entry (bitwise-bit-set? n k) (do-logbit? 'bitwise-bit-set? k n)))
@@ -969,14 +973,14 @@
         (cond
           [(fixnum? k)
            (if (fx< k 0)
-               ($oops 'logbit0 "invalid bit index ~s" k)
+               (invalidindexoops 'logbit0 k)
                ($logbit0 k n))]
           [(bignum? k)
            (if (< k 0)
-               ($oops 'logbit0 "invalid bit index ~s" k)
+               (invalidindexoops 'logbit0 k)
               ; $logbit0 requires k to be a fixnum
                ($logand n ($lognot (ash 1 k))))]
-          [else (exactintoops1 'logbit0 k)])
+          [else (invalidindexoops 'logbit0 k)])
         (exactintoops1 'logbit0 n)))
 
   (define-library-entry (logbit1 k n)
@@ -984,14 +988,14 @@
         (cond
           [(fixnum? k)
            (if (fx< k 0)
-               ($oops 'logbit1 "invalid bit index ~s" k)
+               (invalidindexoops 'logbit1 k)
                ($logbit1 k n))]
           [(bignum? k)
            (if (< k 0)
-               ($oops 'logbit1 "invalid bit index ~s" k)
+               (invalidindexoops 'logbit1 k)
               ; $logbit1 requires k to be a fixnum
                ($logor n (ash 1 k)))]
-          [else (exactintoops1 'logbit1 k)])
+          [else (invalidindexoops 'logbit1 k)])
         (exactintoops1 'logbit1 n)))
 
   (define-library-entry (logtest x y)

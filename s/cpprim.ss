@@ -4669,6 +4669,60 @@
       (define-inline 3 $flonum-exponent
         [(e) (build-flonum-extractor 20 11 e)]))
 
+    (let ()
+      (define build-flonum-bit-field-to-fixnum
+        (lambda (e start size)
+          (safe-assert (< size (constant fixnum-bits)))
+          (let ([mask (* (- (expt 2 size) 1) (expt 2 (constant fixnum-offset)))])
+            (define (finish n start)
+              (%inline logand
+                       ,(cond
+                          [(= start (constant fixnum-offset))
+                           n]
+                          [(< start (constant fixnum-offset))
+                           (%inline sll ,n (immediate ,(fx- (constant fixnum-offset) start)))]
+                          [else
+                           (%inline srl ,n (immediate ,(fx- start (constant fixnum-offset))))])
+                       (immediate ,mask)))
+            (constant-case ptr-bits
+              [(64)
+               (finish `(inline ,(make-info-unboxed-args '(#t)) ,%fpcastto ,e) start)]
+              [(32)
+               (cond
+                 [(<= (+ start size) 32)
+                  (finish `(inline ,(make-info-unboxed-args '(#t)) ,%fpcastto/lo ,e) start)]
+                 [(>= start 32)
+                  (finish `(inline ,(make-info-unboxed-args '(#t)) ,%fpcastto/hi ,e) (fx- start 32))]
+                 [else
+                  (finish (%inline logor
+                                   ,(%inline sll (inline ,(make-info-unboxed-args '(#t)) ,%fpcastto/hi ,e)
+                                             (immediate ,(fx- (fx+ 32 (constant fixnum-offset)) start)))
+                                   ,(%inline srl (inline ,(make-info-unboxed-args '(#t)) ,%fpcastto/lo ,e)
+                                             (immediate ,(fx- start (constant fixnum-offset)))))
+                          (constant fixnum-offset))])]))))
+      (define (maybe-build-flonum-bit-field-to-fixnum e start end unsafe? src sexpr)
+        (and (constant? fixnum? start) (constant? fixnum? end)
+             (let ([start (constant-value start)] [end (constant-value end)])
+               (and (fx<= 0 start end (constant flonum-bits))
+                    (fx<= (fx- end start) (fx- (constant fixnum-bits) 1))
+                    (let ()
+                      (define (extract e)
+                        (if (fx= end start)
+                            (%seq ,e (immediate ,(fix 0)))
+                            (build-flonum-bit-field-to-fixnum e start (fx- end start))))
+                      (if (or unsafe?
+                              (known-flonum-result? e))
+                          (bind #t fp (e)
+                                (extract e))
+                          (bind #t (e)
+                                `(if ,(%type-check mask-flonum type-flonum ,e)
+                                     ,(extract e)
+                                     ,(build-libcall #t src sexpr flbit-field e `(quote ,start) `(quote ,end))))))))))
+      (define-inline 3 flbit-field
+        [(e start end) (maybe-build-flonum-bit-field-to-fixnum e start end #t src sexpr)])
+      (define-inline 2 flbit-field
+        [(e start end) (maybe-build-flonum-bit-field-to-fixnum e start end #f src sexpr)]))
+
     (define-inline 3 $fleqv?
       [(e1 e2)
        (bind #t (e1 e2)
@@ -5268,7 +5322,7 @@
          [(quote ,d)
           (let ([type (filter-foreign-type d)])
             (and (memq type (record-datatype list))
-                 (not (memq type '(char wchar boolean)))
+                 (not (memq type '(char wchar boolean stdbool)))
                  (build-object-ref #f type base offset)))]
          [else #f])])
     (define-inline 2 $swap-object-ref
@@ -5277,7 +5331,7 @@
          [(quote ,d)
           (let ([type (filter-foreign-type d)])
             (and (memq type (record-datatype list))
-                 (not (memq type '(char wchar boolean)))
+                 (not (memq type '(char wchar boolean stdbool)))
                  (build-object-ref #t type base offset)))]
          [else #f])])
     (define-inline 3 foreign-ref
@@ -5286,7 +5340,7 @@
          [(quote ,d)
           (let ([type (filter-foreign-type d)])
             (and (memq type (record-datatype list))
-                 (not (memq type '(char wchar boolean)))
+                 (not (memq type '(char wchar boolean stdbool)))
                  (bind #f (e-offset)
                    (build-object-ref #f type
                      (ptr->integer e-addr (constant ptr-bits))
@@ -5298,7 +5352,7 @@
          [(quote ,d)
           (let ([type (filter-foreign-type d)])
             (and (memq type (record-datatype list))
-                 (not (memq type '(char wchar boolean)))
+                 (not (memq type '(char wchar boolean stdbool)))
                  (bind #f (e-offset)
                    (build-object-ref #t type
                      (ptr->integer e-addr (constant ptr-bits))
@@ -5310,7 +5364,7 @@
          [(quote ,d)
           (let ([type (filter-foreign-type d)])
             (and (memq type (record-datatype list))
-                 (not (memq type '(char wchar boolean)))
+                 (not (memq type '(char wchar boolean stdbool)))
                  (or (>= (constant ptr-bits) (type->width type)) (eq? type 'double-float))
                  (build-object-set! type base offset value)))]
          [else #f])])
@@ -5320,7 +5374,7 @@
          [(quote ,d)
           (let ([type (filter-foreign-type d)])
             (and (memq type (record-datatype list))
-                 (not (memq type '(char wchar boolean)))
+                 (not (memq type '(char wchar boolean stdbool)))
                  (or (>= (constant ptr-bits) (type->width type)) (eq? type 'double-float))
                  (bind #f (e-offset e-value)
                    (build-object-set! type
@@ -5334,7 +5388,7 @@
          [(quote ,d)
           (let ([type (filter-foreign-type d)])
             (and (memq type (record-datatype list))
-                 (not (memq type '(char wchar boolean single-float)))
+                 (not (memq type '(char wchar boolean stdbool single-float)))
                  (>= (constant ptr-bits) (type->width type))
                  (bind #f (e-offset e-value)
                    (build-swap-object-set! type
@@ -5550,6 +5604,21 @@
                  ,(%constant sfalse)
                  ,(%constant strue))))
 
+        (define-fptr-ref-inline $fptr-ref-stdbool
+          (constant-case stdbool-bits [(8) 'unsigned-8])
+          #f
+          (lambda (x)
+            `(if ,(%inline eq? ,x (immediate 0))
+                 ,(%constant sfalse)
+                 ,(%constant strue))))
+        (define-fptr-ref-inline $fptr-ref-swap-stdbool
+          (constant-case stdbool-bits [(8) 'unsigned-8])
+          #t
+          (lambda (x)
+            `(if ,(%inline eq? ,x (immediate 0))
+                 ,(%constant sfalse)
+                 ,(%constant strue))))
+
         (define-fptr-ref-inline $fptr-ref-fixnum 'fixnum #f)
         (define-fptr-ref-inline $fptr-ref-swap-fixnum 'fixnum #t))
       (let ()
@@ -5650,6 +5719,17 @@
           (constant-case int-bits
             [(32) 'unsigned-32]
             [(64) 'unsigned-64])
+          build-swap-object-set!
+          (lambda (z) `(if ,z (immediate ,(fix 1)) (immediate ,(fix 0)))))
+
+        (define-fptr-set!-inline #f $fptr-set-stdbool!
+          (constant-case stdbool-bits
+            [(8) 'unsigned-8])
+          build-object-set!
+          (lambda (z) `(if ,z (immediate ,(fix 1)) (immediate ,(fix 0)))))
+        (define-fptr-set!-inline #f $fptr-set-swap-stdbool!
+          (constant-case stdbool-bits
+            [(8) 'unsigned-8])
           build-swap-object-set!
           (lambda (z) `(if ,z (immediate ,(fix 1)) (immediate ,(fix 0)))))
 
